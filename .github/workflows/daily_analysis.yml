@@ -196,6 +196,24 @@ jobs:
           # 可选值: tencent, akshare_sina, efinance, akshare_em, tushare
           # 如果有 Tushare Pro 高积分账号，可将 tushare 放在首位
           REALTIME_SOURCE_PRIORITY: ${{ vars.REALTIME_SOURCE_PRIORITY || 'tencent,akshare_sina,efinance,akshare_em' }}
+          # 批量预取实时行情，多只股票共享缓存
+          PREFETCH_REALTIME_QUOTES: ${{ vars.PREFETCH_REALTIME_QUOTES || 'true' }}
+          # 回测配置
+          BACKTEST_ENABLED: ${{ vars.BACKTEST_ENABLED || 'true' }}
+          BACKTEST_EVAL_WINDOW_DAYS: ${{ vars.BACKTEST_EVAL_WINDOW_DAYS || '10' }}
+          BACKTEST_MIN_AGE_DAYS: ${{ vars.BACKTEST_MIN_AGE_DAYS || '14' }}
+          BACKTEST_ENGINE_VERSION: ${{ vars.BACKTEST_ENGINE_VERSION || 'v1' }}
+          BACKTEST_NEUTRAL_BAND_PCT: ${{ vars.BACKTEST_NEUTRAL_BAND_PCT || '2.0' }}
+          # 基本面聚合
+          ENABLE_FUNDAMENTAL_PIPELINE: ${{ vars.ENABLE_FUNDAMENTAL_PIPELINE || 'true' }}
+          FUNDAMENTAL_STAGE_TIMEOUT_SECONDS: ${{ vars.FUNDAMENTAL_STAGE_TIMEOUT_SECONDS || '1.5' }}
+          FUNDAMENTAL_FETCH_TIMEOUT_SECONDS: ${{ vars.FUNDAMENTAL_FETCH_TIMEOUT_SECONDS || '0.8' }}
+          FUNDAMENTAL_CACHE_TTL_SECONDS: ${{ vars.FUNDAMENTAL_CACHE_TTL_SECONDS || '120' }}
+          # 东财接口补丁（防封禁）
+          ENABLE_EASTMONEY_PATCH: ${{ vars.ENABLE_EASTMONEY_PATCH || 'true' }}
+          # Agent 策略配置
+          AGENT_SKILLS: ${{ vars.AGENT_SKILLS || secrets.AGENT_SKILLS }}
+          AGENT_MEMORY_ENABLED: ${{ vars.AGENT_MEMORY_ENABLED || 'true' }}
           RUN_IMMEDIATELY: 'true'
           
         run: |
