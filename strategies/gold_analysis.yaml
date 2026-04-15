@@ -1,0 +1,52 @@
+# Gold Price Analysis Strategy / 黄金价格分析策略
+# Technical analysis of gold prices with moving averages and volume confirmation.
+
+name: gold_analysis
+display_name: 黄金价格分析
+description: 专门用于黄金价格的技术分析，使用与股票相同的分析框架和指标。
+category: precious_metal
+core_rules: [1, 2, 3]
+required_tools:
+  - get_daily_history
+  - analyze_trend
+aliases: [黄金分析, 黄金价格, 贵金属分析]
+default_priority: 15
+market_regimes: [all]
+
+instructions: |
+  **黄金价格分析策略（Gold Price Analysis Strategy）**
+
+  适用于黄金（GOLD, GC=F, XAUUSD=X, XAU）等贵金属价格分析，使用与股票相同的技术分析框架。
+
+  信号判定标准：
+
+  1. **趋势识别**（关联理念2：趋势交易）：
+     - 使用 `analyze_trend` 检查黄金价格均线排列情况（MA5, MA10, MA20）。
+     - 上升趋势：MA5 >= MA10 >= MA20 且 MA20 斜率向上
+     - 下降趋势：MA5 <= MA10 <= MA20 且 MA20 斜率向下
+     - 震荡趋势：均线缠绕，方向不明
+
+  2. **技术指标应用**：
+     - 黄金价格同样适用移动平均线理论
+     - 金叉：短期均线上穿长期均线，可能的买入信号
+     - 死叉：短期均线下穿长期均线，可能的卖出信号
+     - 支撑位：前期低点或重要均线位置
+     - 压力位：前期高点或重要均线位置
+
+  3. **波动性考虑**：
+     - 黄金作为避险资产，其波动特性与股票不同
+     - 关注国际政治经济事件对金价的影响
+     - 美元指数、通胀预期等因素影响金价走势
+
+  4. **量价关系**（如果可用）：
+     - 成交量放大配合价格变化，确认趋势强度
+     - 无量上涨或下跌，趋势可能不可持续
+
+  评分调整：
+  - 上升趋势中的回调买入：sentiment_score +10
+  - 下降趋势中的反弹卖出：sentiment_score -10
+  - 均线多头排列：sentiment_score +8
+  - 均线空头排列：sentiment_score -8
+  - 金叉确认：sentiment_score +6
+  - 死叉确认：sentiment_score -6
+  - 在 `ma_analysis` 和 `buy_reason` 中注明"黄金技术分析"。
