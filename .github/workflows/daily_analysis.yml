@@ -54,6 +54,14 @@ jobs:
       - name: 创建必要目录
         run: |
           mkdir -p data logs reports
+
+      - name: 恢复数据库缓存
+        uses: actions/cache@v4
+        with:
+          path: data/stock_analysis.db
+          key: stock-db-${{ github.ref_name }}-${{ github.run_id }}
+          restore-keys: |
+            stock-db-${{ github.ref_name }}-
       
       - name: 执行股票分析
         env:
@@ -77,7 +85,7 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_API_KEYS: ${{ secrets.GEMINI_API_KEYS }}
           GEMINI_MODEL: ${{ vars.GEMINI_MODEL || secrets.GEMINI_MODEL || 'gemini-3-flash-preview' }}
-          GEMINI_MODEL_FALLBACK: ${{ vars.GEMINI_MODEL_FALLBACK || secrets.GEMINI_MODEL_FALLBACK || 'gemini-2.5-flash' }}
+          GEMINI_MODEL_FALLBACK: ${{ vars.GEMINI_MODEL_FALLBACK || secrets.GEMINI_MODEL_FALLBACK || 'gpt-5.5-free' }}
           GEMINI_REQUEST_DELAY: '3.0'
           
           # AIHubMix（优先于 OPENAI_API_KEY，自动适配 base_url，推荐国内用户）
@@ -87,7 +95,7 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_API_KEYS: ${{ secrets.OPENAI_API_KEYS }}
           OPENAI_BASE_URL: ${{ vars.OPENAI_BASE_URL || secrets.OPENAI_BASE_URL }}
-          OPENAI_MODEL: ${{ vars.OPENAI_MODEL || secrets.OPENAI_MODEL || 'gpt-5.5-free' }}
+          OPENAI_MODEL: ${{ vars.OPENAI_MODEL || secrets.OPENAI_MODEL || 'gemini-2.5-flash' }}
 
           # DeepSeek
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
@@ -454,6 +462,13 @@ jobs:
             python main.py $FORCE_RUN_ARG
           fi
       
+      - name: 保存数据库缓存
+        uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: data/stock_analysis.db
+          key: stock-db-${{ github.ref_name }}-${{ github.run_id }}
+
       - name: 上传分析报告
         uses: actions/upload-artifact@v6
         if: always()
