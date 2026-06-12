@@ -386,6 +386,7 @@ jobs:
           fi
 
           # 判断运行模式
+          SCHEDULE_ENABLED: 'false'
           MODE="${{ github.event.inputs.mode || 'full' }}"
           
           echo "=========================================="
