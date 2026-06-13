@@ -373,6 +373,7 @@ jobs:
           AGENT_SKILLS: ${{ vars.AGENT_SKILLS || secrets.AGENT_SKILLS }}
           AGENT_MEMORY_ENABLED: ${{ vars.AGENT_MEMORY_ENABLED || 'true' }}
           RUN_IMMEDIATELY: 'true'
+          SCHEDULE_ENABLED: 'false'
           
         run: |
           # 处理 LITELLM YAML 配置文件
@@ -386,7 +387,6 @@ jobs:
           fi
 
           # 判断运行模式
-          SCHEDULE_ENABLED: 'false'
           MODE="${{ github.event.inputs.mode || 'full' }}"
           
           echo "=========================================="
