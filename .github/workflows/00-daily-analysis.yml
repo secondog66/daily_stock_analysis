@@ -89,7 +89,7 @@ jobs:
           GEMINI_REQUEST_DELAY: '3.0'
           
           # AIHubMix（优先于 OPENAI_API_KEY，自动适配 base_url，推荐国内用户）
-          AIHUBMIX_KEY: ${{ secrets.AIHUBMIX_KEY }}
+          AIHUBMIX_KEY: ${{ secrets.AIHUBMIX }}
 
           # OpenAI 兼容 API（备选）
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
