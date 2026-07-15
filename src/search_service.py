@@ -1200,25 +1200,32 @@ class EastMoneyNewsSearchProvider(BaseSearchProvider):
         return self._do_search(query, "eastmoney_free", max_results, days)
     
     def _do_search(self, query: str, api_key: str, max_results: int, days: int = 7) -> SearchResponse:
-        """执行东方财富新闻搜索"""
+        """执行东方财富公告搜索"""
         try:
-            # 东方财富公开搜索 API
-            params = {
-                "keyword": query,
-                "pageIndex": 1,
-                "pageSize": max_results * 2,  # 多取一些用于过滤
-                "type": 0,  # 0=资讯
-            }
+            import re
+            # 从查询中提取股票代码（6位数字）
+            stock_codes = re.findall(r'\b(\d{6})\b', query)
             
-            headers = {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-                "Referer": "https://so.eastmoney.com/"
-            }
+            if not stock_codes:
+                # 没有股票代码时，尝试用关键词搜索公告标题
+                params = {
+                    "keyword": query[:50],
+                    "page_index": 1,
+                    "page_size": max_results,
+                    "ann_type": "A",
+                }
+            else:
+                # 有股票代码时，直接查该股票的公告
+                params = {
+                    "stock_list": stock_codes[0],
+                    "page_index": 1,
+                    "page_size": max_results,
+                    "ann_type": "A",
+                }
             
             resp = requests.get(
-                "https://searchapi.eastmoney.com/api/Info/Search",
+                "https://np-anotice-stock.eastmoney.com/api/security/ann",
                 params=params,
-                headers=headers,
                 timeout=10
             )
             
@@ -1226,55 +1233,37 @@ class EastMoneyNewsSearchProvider(BaseSearchProvider):
             data = resp.json()
             
             results = []
-            articles = data.get("Data", []) or []
-            
-            now = time.time()
-            cutoff = now - (days * 86400)
+            articles = (data.get("data", {}) or {}).get("list", []) or []
             
             for item in articles:
-                if len(results) >= max_results:
-                    break
+                title = item.get("title", "") or item.get("title_ch", "")
+                # 构建公告 URL
+                art_code = item.get("art_code", "")
+                url = f"https://data.eastmoney.com/notices/detail/{art_code}.html" if art_code else ""
                 
-                title = item.get("Title", "").replace("<em>", "").replace("</em>", "")
-                url = item.get("Url", "")
-                snippet = item.get("Content", "").replace("<em>", "").replace("</em>", "")
-                source = item.get("MediaName", "东方财富")
+                display_time = item.get("display_time", "")
+                published_date = display_time[:10] if display_time else ""
                 
-                # 解析日期
-                date_str = item.get("Date", "")
-                published_date = date_str[:10] if len(date_str) >= 10 else ""
+                # 提取来源/类型
+                columns = item.get("columns", [])
+                source = "东方财富公告"
+                if columns:
+                    col_names = [c.get("column_name", "") for c in columns if c.get("column_name")]
+                    if col_names:
+                        source = f"公告-{col_names[0]}"
                 
                 results.append(SearchResult(
                     title=title,
                     url=url,
-                    snippet=snippet[:500],
-                    source=source or "东方财富",
+                    snippet=title,  # 公告标题即核心信息
+                    source=source,
                     published_date=published_date
                 ))
-            
-            # 如果主 API 没有结果，尝试资讯搜索
-            if not results:
-                resp2 = requests.get(
-                    "https://searchapi.eastmoney.com/api/Info/Search",
-                    params={**params, "type": 8},  # 8=研报
-                    headers=headers,
-                    timeout=10
-                )
-                if resp2.status_code == 200:
-                    data2 = resp2.json()
-                    for item in (data2.get("Data", []) or [])[:max_results]:
-                        title = item.get("Title", "").replace("<em>", "").replace("</em>", "")
-                        url = item.get("Url", "")
-                        snippet = item.get("Content", "").replace("<em>", "").replace("</em>", "")
-                        results.append(SearchResult(
-                            title=title, url=url, snippet=snippet[:500],
-                            source=item.get("MediaName", "东方财富研报") or "东方财富研报"
-                        ))
             
             return SearchResponse(
                 query=query, results=results, provider=self.name,
                 success=len(results) > 0,
-                error_message=None if results else "未找到相关新闻"
+                error_message=None if results else "未找到相关公告"
             )
             
         except Exception as e:
