@@ -698,6 +698,7 @@ class Config:
     tavily_api_keys: List[str] = field(default_factory=list)  # Tavily API Keys
     brave_api_keys: List[str] = field(default_factory=list)  # Brave Search API Keys
     serpapi_keys: List[str] = field(default_factory=list)  # SerpAPI Keys
+    serper_api_keys: List[str] = field(default_factory=list)  # Serper.dev API Keys (free 2500 searches)
     searxng_base_urls: List[str] = field(default_factory=list)  # SearXNG instance URLs (self-hosted, no quota)
     searxng_public_instances_enabled: bool = True  # Auto-discover public SearXNG instances when base URLs are absent
 
@@ -1329,6 +1330,9 @@ class Config:
         serpapi_keys_str = os.getenv('SERPAPI_API_KEYS', '')
         serpapi_keys = [k.strip() for k in serpapi_keys_str.split(',') if k.strip()]
 
+        serper_keys_str = os.getenv('SERPER_API_KEYS', '')
+        serper_api_keys = [k.strip() for k in serper_keys_str.split(',') if k.strip()]
+
         brave_keys_str = os.getenv('BRAVE_API_KEYS', '')
         brave_api_keys = [k.strip() for k in brave_keys_str.split(',') if k.strip()]
 
@@ -1475,6 +1479,7 @@ class Config:
             tavily_api_keys=tavily_api_keys,
             brave_api_keys=brave_api_keys,
             serpapi_keys=serpapi_keys,
+            serper_api_keys=serper_api_keys,
             searxng_base_urls=searxng_base_urls,
             searxng_public_instances_enabled=searxng_public_instances_enabled,
             social_sentiment_api_key=os.getenv('SOCIAL_SENTIMENT_API_KEY') or None,

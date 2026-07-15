@@ -1069,6 +1069,221 @@ class BochaSearchProvider(BaseSearchProvider):
             return '未知来源'
 
 
+class SerperDevSearchProvider(BaseSearchProvider):
+    """
+    Serper.dev 搜索引擎
+    
+    特点：
+    - Google 搜索结果（含 News）
+    - 注册即送 2500 次免费搜索
+    - 支持时间范围过滤
+    - API 简洁，无需额外依赖库
+    
+    文档：https://serper.dev/docs
+    """
+    
+    def __init__(self, api_keys: List[str]):
+        super().__init__(api_keys, "Serper")
+    
+    def _do_search(self, query: str, api_key: str, max_results: int, days: int = 7) -> SearchResponse:
+        """执行 Serper.dev 搜索"""
+        try:
+            # 确定时间范围参数 tbs
+            tbs = "qdr:w"
+            if days <= 1:
+                tbs = "qdr:d"
+            elif days <= 7:
+                tbs = "qdr:w"
+            elif days <= 30:
+                tbs = "qdr:m"
+            else:
+                tbs = "qdr:y"
+            
+            payload = {
+                "q": query,
+                "num": max_results,
+                "tbs": tbs,
+                "gl": "cn",
+                "hl": "zh-cn"
+            }
+            
+            headers = {
+                "X-API-KEY": api_key,
+                "Content-Type": "application/json"
+            }
+            
+            resp = requests.post(
+                "https://google.serper.dev/search",
+                headers=headers,
+                json=payload,
+                timeout=15
+            )
+            
+            if resp.status_code == 403:
+                return SearchResponse(
+                    query=query, results=[], provider=self.name,
+                    success=False, error_message=f"API key 无效或额度耗尽"
+                )
+            
+            resp.raise_for_status()
+            data = resp.json()
+            
+            results = []
+            
+            # 优先使用 news 结果（金融场景更有价值）
+            for item in data.get("news", [])[:max_results]:
+                results.append(SearchResult(
+                    title=item.get("title", ""),
+                    url=item.get("link", ""),
+                    snippet=item.get("snippet", ""),
+                    source=self._extract_domain(item.get("link", "")),
+                    published_date=item.get("date", "")
+                ))
+            
+            # 补充 organic 结果
+            for item in data.get("organic", [])[:max_results]:
+                if len(results) >= max_results:
+                    break
+                results.append(SearchResult(
+                    title=item.get("title", ""),
+                    url=item.get("link", ""),
+                    snippet=item.get("snippet", ""),
+                    source=self._extract_domain(item.get("link", ""))
+                ))
+            
+            return SearchResponse(
+                query=query, results=results, provider=self.name,
+                success=len(results) > 0,
+                error_message=None if results else "未找到搜索结果"
+            )
+            
+        except Exception as e:
+            return SearchResponse(
+                query=query, results=[], provider=self.name,
+                success=False, error_message=str(e)
+            )
+    
+    @staticmethod
+    def _extract_domain(url: str) -> str:
+        try:
+            from urllib.parse import urlparse
+            parsed = urlparse(url)
+            return parsed.netloc.replace('www.', '') or '未知来源'
+        except Exception:
+            return '未知来源'
+
+
+class EastMoneyNewsSearchProvider(BaseSearchProvider):
+    """
+    东方财富新闻搜索引擎
+    
+    特点：
+    - 免费、无需 API Key
+    - 直接搜索东方财富资讯/研报/公告
+    - 专为 A 股金融场景优化
+    - 支持时间范围过滤
+    
+    接口：searchapi.eastmoney.com（公开接口，无需授权）
+    """
+    
+    def __init__(self):
+        # 不需要 API key，用空列表初始化
+        super().__init__(["eastmoney_free"], "EastMoney")
+    
+    @property
+    def is_available(self) -> bool:
+        """始终可用"""
+        return True
+    
+    def search(self, query: str, max_results: int = 5, days: int = 7) -> SearchResponse:
+        """执行东方财富新闻搜索（不使用 key 轮转）"""
+        return self._do_search(query, "eastmoney_free", max_results, days)
+    
+    def _do_search(self, query: str, api_key: str, max_results: int, days: int = 7) -> SearchResponse:
+        """执行东方财富新闻搜索"""
+        try:
+            # 东方财富公开搜索 API
+            params = {
+                "keyword": query,
+                "pageIndex": 1,
+                "pageSize": max_results * 2,  # 多取一些用于过滤
+                "type": 0,  # 0=资讯
+            }
+            
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                "Referer": "https://so.eastmoney.com/"
+            }
+            
+            resp = requests.get(
+                "https://searchapi.eastmoney.com/api/Info/Search",
+                params=params,
+                headers=headers,
+                timeout=10
+            )
+            
+            resp.raise_for_status()
+            data = resp.json()
+            
+            results = []
+            articles = data.get("Data", []) or []
+            
+            now = time.time()
+            cutoff = now - (days * 86400)
+            
+            for item in articles:
+                if len(results) >= max_results:
+                    break
+                
+                title = item.get("Title", "").replace("<em>", "").replace("</em>", "")
+                url = item.get("Url", "")
+                snippet = item.get("Content", "").replace("<em>", "").replace("</em>", "")
+                source = item.get("MediaName", "东方财富")
+                
+                # 解析日期
+                date_str = item.get("Date", "")
+                published_date = date_str[:10] if len(date_str) >= 10 else ""
+                
+                results.append(SearchResult(
+                    title=title,
+                    url=url,
+                    snippet=snippet[:500],
+                    source=source or "东方财富",
+                    published_date=published_date
+                ))
+            
+            # 如果主 API 没有结果，尝试资讯搜索
+            if not results:
+                resp2 = requests.get(
+                    "https://searchapi.eastmoney.com/api/Info/Search",
+                    params={**params, "type": 8},  # 8=研报
+                    headers=headers,
+                    timeout=10
+                )
+                if resp2.status_code == 200:
+                    data2 = resp2.json()
+                    for item in (data2.get("Data", []) or [])[:max_results]:
+                        title = item.get("Title", "").replace("<em>", "").replace("</em>", "")
+                        url = item.get("Url", "")
+                        snippet = item.get("Content", "").replace("<em>", "").replace("</em>", "")
+                        results.append(SearchResult(
+                            title=title, url=url, snippet=snippet[:500],
+                            source=item.get("MediaName", "东方财富研报") or "东方财富研报"
+                        ))
+            
+            return SearchResponse(
+                query=query, results=results, provider=self.name,
+                success=len(results) > 0,
+                error_message=None if results else "未找到相关新闻"
+            )
+            
+        except Exception as e:
+            return SearchResponse(
+                query=query, results=[], provider=self.name,
+                success=False, error_message=str(e)
+            )
+
+
 class AnspireSearchProvider(BaseSearchProvider):
     """
     Anspire Search 搜索引擎
@@ -2168,6 +2383,7 @@ class SearchService:
         anspire_keys: Optional[List[str]] = None,
         brave_keys: Optional[List[str]] = None,
         serpapi_keys: Optional[List[str]] = None,
+        serper_keys: Optional[List[str]] = None,
         minimax_keys: Optional[List[str]] = None,
         searxng_base_urls: Optional[List[str]] = None,
         searxng_public_instances_enabled: bool = True,
@@ -2217,6 +2433,15 @@ class SearchService:
         if tavily_keys:
             self._providers.append(TavilySearchProvider(tavily_keys))
             logger.info(f"已配置 Tavily 搜索，共 {len(tavily_keys)} 个 API Key")
+
+        # 2.5 Serper.dev（Google 搜索，注册送 2500 次）
+        if serper_keys:
+            self._providers.append(SerperDevSearchProvider(serper_keys))
+            logger.info(f"已配置 Serper 搜索，共 {len(serper_keys)} 个 API Key")
+
+        # 2.6 东方财富新闻搜索（免费、无需 Key、A 股专用）
+        self._providers.append(EastMoneyNewsSearchProvider())
+        logger.info("已配置 EastMoney 新闻搜索（免费公开接口）")
 
         # 3. Brave Search（隐私优先，全球覆盖）
         if brave_keys:
