@@ -416,6 +416,7 @@ class AkshareFundamentalAdapter:
     def get_capital_flow(self, stock_code: str, top_n: int = 5) -> Dict[str, Any]:
         """
         Return stock + sector capital flow.
+        优先使用 Akshare，失败时直接调用东方财富 push2his API 作为 fallback。
         """
         result: Dict[str, Any] = {
             "status": "not_supported",
@@ -445,6 +446,52 @@ class AkshareFundamentalAdapter:
                     "inflow_10d": inflow_10d,
                 }
                 result["source_chain"].append(f"capital_stock:{stock_source}")
+
+        # Fallback: 直接调用东方财富 push2his API（Akshare 被封时的兜底方案）
+        if not result["stock_flow"]:
+            try:
+                import requests as _req
+                # 判断市场：6开头=沪市(1)，其他=深市(0)
+                market = "1" if stock_code.startswith("6") else "0"
+                secid = f"{market}.{stock_code}"
+                api_url = (
+                    f"https://push2his.eastmoney.com/api/qt/stock/fflow/daykline/get"
+                    f"?lmt=10&klt=101&secid={secid}"
+                    f"&fields1=f1,f2,f3,f7"
+                    f"&fields2=f51,f52,f53,f54,f55,f56,f57"
+                )
+                resp = _req.get(api_url, headers={
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+                    "Referer": "https://quote.eastmoney.com/",
+                }, timeout=10)
+                if resp.status_code == 200:
+                    jdata = resp.json()
+                    klines = (jdata.get("data") or {}).get("klines") or []
+                    if klines:
+                        # 格式: "日期,主力净流入,小单净流入,中单净流入,大单净流入,超大单净流入,主力净流入占比"
+                        latest = klines[-1].split(",")
+                        net_inflow = float(latest[1]) if len(latest) > 1 else None
+                        # 5日/10日累计
+                        inflow_5d = None
+                        inflow_10d = None
+                        if len(klines) >= 5:
+                            inflow_5d = sum(float(k.split(",")[1]) for k in klines[-5:] if len(k.split(",")) > 1)
+                        if len(klines) >= 10:
+                            inflow_10d = sum(float(k.split(",")[1]) for k in klines[-10:] if len(k.split(",")) > 1)
+                        result["stock_flow"] = {
+                            "main_net_inflow": net_inflow,
+                            "inflow_5d": inflow_5d,
+                            "inflow_10d": inflow_10d,
+                        }
+                        result["source_chain"].append("capital_stock:push2his_direct")
+                        import logging
+                        logging.getLogger(__name__).info(
+                            "[资金流] Akshare 失败，push2his 直连成功: %s 主力净流入=%.0f",
+                            stock_code, net_inflow or 0,
+                        )
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).debug("[资金流] push2his fallback 也失败: %s", e)
 
         sector_df, sector_source, sector_errors = self._call_df_candidates([
             ("stock_sector_fund_flow_rank", {}),
